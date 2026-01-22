@@ -1,0 +1,167 @@
+How To Play All Flops In 6Max Holdem Optimally
+
+SRP LJ/HJ vs BB, HJ has on average a few % lower betting range
+
+A+2broadways r = range 70%
+A+2broadways s = range 30%
+A+B+low = 70% 50% or 30% 80%-range(simplify to small bet range)
+A9x and lower - 30% 50%
+
+Kxx
+3 broadway - 30% 70%
+K+broadway+lower card = 70% 70%
+K+2x<9 = 30% range, on FD 30% 50%
+
+QJT 70% range
+Q+broadway r = 30% range
+Q+broadway fd= 70% 70%
+Q+2x<9 30% 70%
+
+JTxr 30% range
+in rest 70% 70%
+mono b30% 56% time, 40% x
+
+Txxr no straight 30% 80%-100%
+Txxss 30% 50%
+T9xss 70% 50%
+
+9xxr 70% 50%
+9xxs 30% 60%
+
+lower
+straight - 30% 50%
+otherwise 70% 50%
+mono AQ9sss: 30% 30% or x
+
+BTN/CO vs BB SRP
+
+A+2broadway = 30% range
+A+broadway = 120% 40-50% when r, 30% when fd
+A+2x<9 = 30% 50%-70% r, 30% 40% fd
+A+T+6 fd = 50%
+
+K+broadway fd = 120% 50%
+K+broadway r = 30% range
+K+lower = 30% 70%
+
+Qxx 30% 80% r, FD/SD 70% 50%
+
+Jxxr no straight 30% range, FD/SD 70% 70% but need more info here (or bet around 55% )
+
+T9x, T8x no straight 120% 50%, T7x and lower FD 70% 50%, T6x 30% range
+
+98x 120% 50%
+rest 70% 50%
+
+8xx disconnected fd 70% 50%
+8xx disconnedted r 70% 70%
+
+7xx and lower fd/st - 30% 50%
+7xx and lower r - 70% 60%
+
+usually mono 30% 50%
+
+SRP BvB
+
+Sizes 25,75,x
+
+Most boards that are favorable for SB contain 2xhigh/mid cards, straight on board almost always means high check frequency, otherwise on most boards, high small betting frequency prevails
+A+broadway suited - 30 20 50
+A+broadway rainbow- range small
+A + low cards - simplified to 50/50 small and check
+Kxx mostly small range except for when you have 2 v low cards (K43r - 40/60)
+Qxx + one high card - range small, 2 small cards - 80/20
+Mono boards usually go 50 small / 50 check
+J high and T high average lower on 50 small / 50 check
+9 high and lower start averaging around 20 small / 80 check so can simplify to check range
+
+3b pot
+
+SB v BTN(mostly same as SB v CO) Sizes 25,75,x
+
+Axx range small, mono small 50%
+
+Kxx,Qxx 70 30 0
+low Qxx checks 20-30%
+Jxx 40 50 10
+Txx 30 70 0
+<9xx 0 50 50 aprox
+
+SB v LJ 25,70,x (mostly same as SB vs HJ)
+
+A,K,Qxx range small
+Jxx high range small, low 0 60 40
+<9xx r 0 70 30, FD 0 50 50
+
+BTN,CO vs LJ 2 flop sizes, 24% and 64%
+
+A,K,Q,J range small
+Ax small cards some 30% check
+Jx small cards big 30 70 0
+Tx small range, small cards 60 40 0
+<9x 20 60 20 avg
+
+good turn cards on which we continue betting v often - A,K,Q,J depending on case, v low cards, flush cards?! (T984sss 80% small bet), small card=big bet? bring in draws = big bet?, flush comes in -20%-40% checking, A usually 40% small bet
+low card pairs = big bet?
+JT loves to check Txx boards to infinity
+
+BB v BTN(same CO) 33,80
+
+Axx high 30 30 40 low 40 20 40 superlow 30 0 70
+Kxx 80 20 0
+Qxx 60 20 20
+Jxx high 60 40 0 low 30 50 20
+Txx 40 40 20
+<9x 20 40 30
+
+BB v LJ(same HJ) 33,80
+
+Axx,Kxx,Qxx 100 0 0
+Jxx 20 50 30
+Txx 50 20 30
+9xx 30 30 40
+<9x 0 60 40
+
+BVB
+
+4B Pots IP
+
+4bet pot HJ vs LJ 25,60,x, all in
+
+A+Broadway - high freq small bet
+AAx - small/x 50/50
+A+ <=9 - small/x 40/60
+Mono - range check
+Kxx General heuristic small range
+Qxx straight possible - 50/50, small range
+Jxx - FD - Range small, Rainbow - Range big if straight draws possible, otherwise range small
+Txx - straight draws possible - T9x,T8x 60/x 80/20, rest range small
+9xx and lower avg 80/20, good board 90/10, bad 70/30
+
+BTN vs CO 4B sizes 25,60,x(,AI if used at all)
+
+Axx on BTN vs CO is very atipical compared to the other spots, Axx means v high check frequency because of weighted Ax in BTN's call vs 4b range
+A+broadway usually high bet small, A+lower card polarizing with 80%-90% check freq - can be simplified to range check
+Kxx range small
+Qxx range small
+Jxx 60/x 80/20
+Txx FD 60/x 70/30, r 100/0
+9xx and lower 60/x 80/20
+
+LJ vs BTN sizes 25,60,x(,AI if used at all)
+
+Axx range small
+Kxx range small
+Qxx Some polarization on boards that contain 2x9,8,7 60/x 50/50 otherwise range small
+JTx, J9x range small, lower 60/x 80/20
+Txx simplify 60/x 70/30
+9xx and lower A lot of mid cards - 60/x 50/50 otherwise 80/20
+
+CO vs LJ 4B sizes 25,60,x(,AI if used at all)
+
+Axx Range small, some checking when mid cards present 6-T
+Kxx Range small
+Qxx range small, when straight possible 60/x 50/50
+Jxx Range small FD, rainbow range big
+Txx 60/x 80/20 avg
+9xx and lower if many mid cards/straight present 60/x 50/50 otherwise 80/20

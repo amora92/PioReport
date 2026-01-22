@@ -1,313 +1,328 @@
+"""
+PioSOLVER Report Analyzer
+
+A Streamlit app for analyzing PioSOLVER aggregated reports.
+Simplified board classification, interactive Plotly charts,
+and multi-report comparison.
+"""
+
 import streamlit as st
-import zipfile
-import os
-from io import BytesIO
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.colors
-import shutil
-def extract_zip(zip_bytes):
-    try:
-        with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zf:
-            extract_dir = os.path.join('extracted', zf.namelist()[0].split('/')[0])
-            zf.extractall(path='extracted/')
-            return extract_dir, zf.namelist()
-    except Exception as e:
-        st.error(f'Failed to extract ZIP file: {e}')
-        return None, None
+import os
 
+from modules.data_loader import (
+    list_reports, load_report, extract_zip, delete_report,
+    get_action_columns, get_equity_columns, parse_info_file, EXTRACTED_DIR
+)
+from modules.board_classifier import BOARD_CATEGORIES
+from modules.visualizations import (
+    create_strategy_chart, create_distribution_chart,
+    create_category_comparison_bars
+)
+from modules.stats import get_board_summary, get_key_takeaways
 
-def find_report_csv(directory, report_type):
-    for root, dirs, files in os.walk(directory):
-        if report_type in files:
-            return os.path.join(root, report_type)
-    return None
+# --- PAGE CONFIG ---
+st.set_page_config(
+    page_title='PioSOLVER Report Analyzer',
+    page_icon='🃏',
+    layout='wide',
+    initial_sidebar_state='expanded'
+)
 
-def list_extracted_folders(base_dir='extracted'):
-    folders = []
-    for item in os.listdir(base_dir):
-        item_path = os.path.join(base_dir, item)
-        if os.path.isdir(item_path):
-            folders.append(item)
-    return folders
+# --- SIDEBAR ---
+st.sidebar.title('🃏 PioReport')
+st.sidebar.markdown('*Analyze PioSOLVER reports*')
 
-def clean_up_folder(folder_path):
-    if os.path.exists(folder_path):
-        shutil.rmtree(folder_path)
+# File upload
+st.sidebar.header('📁 Upload Report')
+uploaded_file = st.sidebar.file_uploader(
+    'Upload a PioSOLVER .zip file',
+    type=['zip'],
+    help='Upload an aggregated report ZIP from PioSOLVER'
+)
 
+# Handle file upload
+if uploaded_file is not None:
+    with st.spinner('Extracting report...'):
+        extract_dir, file_list = extract_zip(uploaded_file.getvalue())
+        if extract_dir:
+            st.sidebar.success(f'Extracted: {os.path.basename(extract_dir)}')
+            st.rerun()
 
-def classify_board_type(cards):
-    suits = [card[1] for card in cards.split() if len(card) > 1]
-    ranks = [card[0] for card in cards.split() if len(card) > 1]
+# Report selection
+st.sidebar.header('📂 Select Report')
+available_reports = list_reports()
 
-    unique_suits = set(suits)
-    unique_ranks = set(ranks)
-
-    is_paired = any(ranks.count(rank) > 1 for rank in ranks)
-    is_monotone = len(unique_suits) == 1
-
-    if is_monotone:
-        return 'Monotone boards'
-    if is_paired:
-        return 'Paired boards'
-
-    rank_values = {'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10,
-                   '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2}
-
-    values = [rank_values[rank] for rank in ranks]
-    values.sort(reverse=True)
-
-    if len(values) < 3:
-        return 'Unknown'
-
-    high_cards = {'A', 'K', 'Q', 'J', 'T'}
-    mid_cards = {'9', '8', '7'}
-    low_cards = {'6', '5', '4', '3', '2'}
-
-    if values[0] >= 10 and values[1] >= 10 and values[2] <= 8:
-        return 'Two Broadway, one low card'
-    if values[0] >= 10 and values[1] >= 10 and values[2] >= 8:
-        return 'Two Broadway, connected'
-    if values[0] <= 10 and values[1] >= 7 and values[1] <= 10 and values[1] >= 7 and values[2] <= 10:
-        return 'Mid-connected'
-    if values[0] <= 10 and values[1] <= 7 and values[2] <= 7:
-        return 'Low-connected'
-    if values[0] == 14 and values[1] <= 9 and values[2] <= 9:
-        return 'A-Low connected'
-    if values[0] >= 11 and values[1] <= 9 and values[2] <= 9:
-        return 'One high card, two mid/low cards'
-
-    return 'Unknown'
-
-def convert_suits_to_symbols(cards):
-    suit_mapping = {'s': '♠️', 'd': '♢', 'h': '♡', 'c': '♣️'}
-    return ' '.join([card[0] + suit_mapping.get(card[1], card[1]) for card in cards.split()])
-
-def equity_color_scale(value, min_val, max_val, midpoint=50):
-    if pd.isna(value):
-        return ''
-    if pd.isna(min_val) or pd.isna(max_val) or min_val == max_val:
-        return 'background-color: red'
-    if value < midpoint:
-        relative = (value - min_val) / (midpoint - min_val)
-        r, g, b = 255, int(255 * relative), 0
-    else:
-        relative = (value - midpoint) / (max_val - midpoint)
-        r, g, b = int(255 * (1 - relative)), 255, 0
-    return f'background-color: rgb({r}, {g}, {b})'
-
-
-def create_stacked_bar_plot(df):
-    # Separate the 'Flop' column and 'CHECK freq' column from the numeric data
-    df = df.drop(columns=['OOP Equity', 'IP Equity', 'Board Texture'])
-    flop_column = df['Flop']
-    check_freq_column = df['CHECK freq']
-    df_numeric = df.drop(columns=['Flop', 'CHECK freq'])
-
-    # Reverse the order of the DataFrame
-    df_numeric = df_numeric.iloc[::-1]
-    flop_column = flop_column.iloc[::-1]
-    check_freq_column = check_freq_column.iloc[::-1]
-
-    # Define the colormap
-    cmap = matplotlib.colors.LinearSegmentedColormap.from_list('', [(0.3,0,0), (0.8,0,0), (1,0.6,0.6), (1,0.9,0.9)])
-    # Plot the horizontal bar chart for all columns except 'CHECK freq' with a reversed colormap
-    ax = df_numeric.plot.barh(stacked=True, colormap=cmap, figsize = (12,8))
-    #plt.rcParams['figure.figsize'] = (12, 8)
-
-    # Add the 'CHECK freq' column to the plot with a green color
-    bottom = df_numeric.sum(axis=1).values
-    ax.barh(flop_column, check_freq_column, left=bottom, color='green', label='CHECK freq', height=0.5)
-    ax.set_title('Strategy', fontsize='x-large')
-    ax.set_yticklabels(flop_column, rotation=0, ha='right', fontsize='xx-large')
-    ax.set_xlim(0, 100)
-
-    # Adjust the legend position and display the plot
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, df_numeric.columns.tolist() + ['CHECK freq'], bbox_to_anchor=(1, 1), fontsize='x-large')
-
-    st.pyplot(ax.figure)
-
-def stacked_equity_plot(dataframe):
-    IP_path = find_report_csv(extract_dir, 'report_IP_Full.csv')
-    OOP_path = find_report_csv(extract_dir, 'report_OOP_Full.csv')
-    if IP_path and OOP_path:
-        IP_df = pd.read_csv(IP_path)
-        IP_df = IP_df[IP_df.columns[:4]]
-        OOP_df = pd.read_csv(OOP_path)
-        OOP_df = OOP_df[OOP_df.columns[:4]]
-
-        player_dfs = [IP_df, OOP_df]
-
-        for df in player_dfs:
-            df.columns.values[2] = 'Weight'
-            df.columns.values[3] = 'Equity'
-
-            df['Flop'] = df['Flop'].apply(convert_suits_to_symbols)
-            df['Board Texture'] = df['Flop'].apply(classify_board_type)
-            df = df[df['Board Texture'].isin([selected_texture])]
-        unique_flops = IP_df[IP_df['Board Texture'].isin([selected_texture])].Flop.unique()
-
-        buckets_df = pd.DataFrame()
-        buckets_df['Flop'] = dataframe['Flop']
-
-        def get_bucket_sums(df, flop):
-            flop_df = df[df['Flop'] == flop]
-            weak_equity_sum = flop_df[flop_df['Equity'] <= 25]['Weight'].sum()
-            okay_equity_sum = flop_df[(flop_df['Equity'] > 25) & (flop_df['Equity'] <= 50)]['Weight'].sum()
-            good_equity_sum = flop_df[(flop_df['Equity'] > 50) & (flop_df['Equity'] <= 75)]['Weight'].sum()
-            nut_equity_sum = flop_df[flop_df['Equity'] > 75]['Weight'].sum()
-            return weak_equity_sum, okay_equity_sum, good_equity_sum, nut_equity_sum
-
-        IP_buckets = []
-        OOP_buckets = []
-
-        for flop in report_df['Flop']:
-            IP_buckets.append(get_bucket_sums(IP_df, flop))
-            OOP_buckets.append(get_bucket_sums(OOP_df, flop))
-
-        IP_buckets_df = pd.DataFrame(IP_buckets, columns=['IP_Weak', 'IP_Okay', 'IP_Good', 'IP_Nut'])
-        OOP_buckets_df = pd.DataFrame(OOP_buckets, columns=['OOP_Weak', 'OOP_Okay', 'OOP_Good', 'OOP_Nut'])
-
-        # Convert bucket values to percentages
-        def convert_to_percentage(df):
-            total = df.sum(axis=1)
-            percentage_df = df.divide(total, axis=0) * 100
-            return percentage_df
-
-        IP_buckets_df = convert_to_percentage(IP_buckets_df)
-        OOP_buckets_df = convert_to_percentage(OOP_buckets_df)
-
-        buckets_df = pd.concat([buckets_df.reset_index(drop=True), IP_buckets_df, OOP_buckets_df], axis=1)
-
-
-        buckets_df = buckets_df.iloc[::-1]
-
-        gap = 0.15
-        # Plotting
-        fig, ax = plt.subplots(figsize=(12, 8))
-        bar_width = 0.35
-        index = range(len(unique_flops))
-
-        # Color map for IP (shades of blue)
-        IP_colors = ['#A5D5F3', '#3AA3E4', '#146090', '#072436']
-
-        # Color map for OOP (shades of red)
-        #OOP_colors = ['#F3A5A5', '#E43A3A', '#901414', '#360707']
-        OOP_colors = ['#A5D5F3', '#3AA3E4', '#146090', '#072436']
-        # Plot OOP bars with a gap
-        oop_positions = [p + bar_width + gap for p in index]
-        ax.barh(oop_positions, buckets_df['OOP_Weak'], bar_width, color=OOP_colors[0])
-        ax.barh(oop_positions, buckets_df['OOP_Okay'], bar_width, left=buckets_df['OOP_Weak'], color=OOP_colors[1])
-        ax.barh(oop_positions, buckets_df['OOP_Good'], bar_width, left=buckets_df['OOP_Weak'] + buckets_df['OOP_Okay'],
-                color=OOP_colors[2])
-        ax.barh(oop_positions, buckets_df['OOP_Nut'], bar_width,
-                left=buckets_df['OOP_Weak'] + buckets_df['OOP_Okay'] + buckets_df['OOP_Good'], color=OOP_colors[3])
-
-        # Plot IP bars
-        ax.barh(index, buckets_df['IP_Weak'], bar_width, color=IP_colors[0], label='Weak Equity <=25%')
-        ax.barh(index, buckets_df['IP_Okay'], bar_width, left=buckets_df['IP_Weak'], color=IP_colors[1],
-                label='Okay Equity 26-50%')
-        ax.barh(index, buckets_df['IP_Good'], bar_width, left=buckets_df['IP_Weak'] + buckets_df['IP_Okay'],
-                color=IP_colors[2], label='Good Equity 51-75%')
-        ax.barh(index, buckets_df['IP_Nut'], bar_width,
-                left=buckets_df['IP_Weak'] + buckets_df['IP_Okay'] + buckets_df['IP_Good'], color=IP_colors[3],
-                label='Nut Equity >75%')
-
-        ax.set_title('Equity Buckets (OOP/IP)', fontsize='x-large')
-        ax.set_yticks([p + (bar_width + gap) / 2 for p in index])
-        ax.set_yticklabels(buckets_df['Flop'], fontsize='xx-large')
-        ax.set_xlim(0, 100)
-        handles, labels = ax.get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        ax.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1, 1), fontsize='x-large')
-
-        st.pyplot(fig)
-
-    else:
-        st.error('report_IP_Full.csv and/or report_OOP_Full.csv not found.')
-
-
-
-st.set_page_config(page_title='PioSOLVER Report', layout='wide')
-st.sidebar.title('PioSOLVER Report')
-
-
-# File upload section
-uploaded_file = st.file_uploader('Upload a .zip file', type=['zip'])
-
-extract_dir = None
-report_path = None
-
-if uploaded_file is None:
-    existing_folders = list_extracted_folders()
-    selected_folder = st.selectbox('Or select an already uploaded report folder:', ['None'] + existing_folders)
-    if selected_folder != 'None':
-        extract_dir = os.path.join('extracted', selected_folder)
-        report_path = find_report_csv(extract_dir, 'report.csv')
+if available_reports:
+    selected_report = st.sidebar.selectbox(
+        'Choose a report:',
+        ['None'] + available_reports
+    )
 else:
-    selected_folder = None
+    selected_report = 'None'
+    st.sidebar.info('No reports available. Upload a ZIP file above.')
 
-if uploaded_file is not None and uploaded_file.name.endswith('.zip'):
-    extract_dir, file_list = extract_zip(uploaded_file.getvalue())
-    if extract_dir is not None:
-        report_path = find_report_csv(extract_dir, 'report.csv')
-        if report_path is None:
-            st.error('report.csv not found in the uploaded ZIP file.')
-            clean_up_folder(extract_dir)
+# Delete report option
+if selected_report != 'None':
+    if st.sidebar.button('🗑️ Delete This Report', type='secondary'):
+        delete_report(selected_report)
+        st.rerun()
 
-if report_path:
-    try:
-        report_df = pd.read_csv(report_path, skiprows=3)
-        report_df = report_df.drop(report_df.index[-1])
-        if 'Flop' in report_df.columns:
-            report_df['Flop'] = report_df['Flop'].apply(convert_suits_to_symbols)
-            report_df['Board Texture'] = report_df['Flop'].apply(classify_board_type)
+st.sidebar.markdown('---')
 
-            # Define equity columns
-            equity_columns = ['OOP Equity', 'IP Equity']
-            # Define action columns
-            action_columns = [col for col in report_df.columns if 'freq' in col]
+# Navigation hint
+st.sidebar.markdown('### 📊 Pages')
+st.sidebar.markdown('''
+- **Home**: View individual report
+- **Insights**: Strategy heuristics
+- **Compare**: Multi-report comparison
+- **Board Explorer**: Full sortable table of all boards
+- **Range Builder**: Create custom ranges & study notes
+''')
 
-            all_textures = report_df['Board Texture'].unique().tolist()
-            is_filter = st.sidebar.checkbox('Filter by texture', value=True)
-            if is_filter:
-                selected_texture = st.sidebar.selectbox('Filter by Board Texture:', all_textures)
-                report_df = report_df[report_df['Board Texture'].isin([selected_texture])]
-            sort_by = st.sidebar.selectbox('Sort by:', report_df.columns[1:-1])
-            ascend = st.sidebar.radio('Order: ', ['Largest to smallest', 'Smallest to largest'])
-            ascend_bool = True if ascend == 'Smallest to largest' else False
-            report_df = report_df.sort_values(by=[sort_by], ascending=ascend_bool)
-            # Apply the color scale to OOP Equity
+# --- MAIN CONTENT ---
+if selected_report == 'None':
+    # Welcome screen
+    st.title('🃏 PioSOLVER Report Analyzer')
+    st.markdown('---')
 
-            styled_df = report_df.style.map(
-                lambda x: equity_color_scale(x, report_df['OOP Equity'].min(),
-                                             report_df['OOP Equity'].max()),
-                subset=['OOP Equity']
-            )
+    st.markdown('''
+    ## Welcome!
 
-            # Apply the color scale to IP Equity
-            styled_df = styled_df.map(
-                lambda x: equity_color_scale(x, report_df['IP Equity'].min(), report_df['IP Equity'].max()),
-                subset=['IP Equity']
-            )
+    This tool helps you analyze PioSOLVER aggregated reports to extract
+    actionable poker heuristics.
 
-            # Apply the color scale to each action column individually
-            for column in action_columns:
-                styled_df = styled_df.map(
-                    lambda x, col=column: equity_color_scale(x, report_df[col].min(), report_df[col].max()),
-                    subset=[column]
-                )
-            st.table(styled_df)
-            if is_filter:
-                create_stacked_bar_plot(report_df)
-                stacked_equity_plot(report_df)
+    ### Features
+
+    - **Detailed Board Classification**: Granular categories with FD/Rainbow distinction
+    - **Interactive Charts**: Hover, zoom, and export with Plotly
+    - **Strategy Insights**: Automated heuristic extraction
+    - **Multi-Report Comparison**: Compare strategies across spots
+
+    ### Getting Started
+
+    1. **Upload** a PioSOLVER aggregated report ZIP file
+    2. **Select** the report from the dropdown
+    3. **Explore** the data and insights
+
+    ### Board Categories
+
+    | Category | Description | Example |
+    |----------|-------------|---------|
+    | **Monotone** | All 3 cards same suit | A♠ 7♠ 2♠ |
+    | **Paired** | Board with a pair/trips | 8♠ 8♥ 3♦ |
+    | **Two Broadway + low** | Two broadway (T+), one low card | K♥ Q♦ 4♣ |
+    | **Two Broadway connected** | Two connected broadway cards | K♥ Q♦ J♣ |
+    | **High + two low** | One high card (J+), two mid/low | A♥ 6♦ 3♣ |
+    | **Mid-connected** | Mid cards (9-T high), connected | T♥ 8♦ 7♣ |
+    | **Low-connected** | All low cards (8-), connected | 7♠ 5♥ 4♦ |
+    | **A-Low** | Ace with two low cards | A♠ 5♥ 3♦ |
+    | **Disconnected** | Unpaired, not fitting above | K♥ 7♦ 2♣ |
+
+    ### Flush Draw Status
+    Each unpaired, non-monotone category includes:
+    - **(FD)**: Flush draw present (two-tone)
+    - **(Rainbow)**: No flush draw (three suits)
+    ''')
+
+else:
+    # Load and display report
+    df = load_report(selected_report)
+
+    if df is None or df.empty:
+        st.error('Failed to load the selected report. The CSV may be invalid.')
+        st.stop()
+
+    # Get columns
+    action_cols = get_action_columns(df)
+    equity_cols = get_equity_columns(df)
+
+    # Header with report info
+    st.title(f'📊 {selected_report}')
+
+    # Try to get spot info
+    folder_path = os.path.join(EXTRACTED_DIR, selected_report)
+    info = parse_info_file(folder_path)
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric('Total Flops', len(df))
+    with col2:
+        st.metric('Board Categories', df['Board Category'].nunique())
+    with col3:
+        if info.get('spot_type'):
+            st.metric('Spot Type', info['spot_type'])
         else:
-            st.error('Flop data not found in the report.csv.')
-    except Exception as e:
-        st.error('The .zip you uploaded is not compatible.')
-        clean_up_folder(extract_dir)
-else:
-    st.sidebar.write('IMPORTANT: Use these exact settings for aggregated report')
-    st.sidebar.image('report_settings.jpg', use_column_width=True)
+            st.metric('Actions', len(action_cols))
+    with col4:
+        if 'OOP Equity' in df.columns:
+            avg_eq = df['OOP Equity'].mean()
+            st.metric('Avg OOP Equity', f'{avg_eq:.1f}%')
 
+    # Key takeaways
+    st.markdown('---')
+    takeaways = get_key_takeaways(df)
+    if takeaways:
+        cols = st.columns(len(takeaways))
+        for i, takeaway in enumerate(takeaways[:4]):
+            with cols[i % len(cols)]:
+                st.info(takeaway)
+
+    # --- FILTERS ---
+    st.sidebar.markdown('---')
+    st.sidebar.header('🔍 Filters')
+
+    # Category filter
+    all_categories = ['All'] + sorted(df['Board Category'].unique().tolist())
+    selected_category = st.sidebar.selectbox('Board Category:', all_categories)
+
+    # Tag filters
+    st.sidebar.markdown('**Secondary Tags:**')
+    filter_flush_draw = st.sidebar.checkbox('Flush Draw only')
+    filter_connected = st.sidebar.checkbox('Connected only')
+    filter_broadway = st.sidebar.checkbox('Broadway only')
+
+    # Apply filters
+    filtered_df = df.copy()
+
+    if selected_category != 'All':
+        filtered_df = filtered_df[filtered_df['Board Category'] == selected_category]
+
+    if filter_flush_draw and 'Has Flush Draw' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['Has Flush Draw'] == True]
+
+    if filter_connected and 'Is Connected' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['Is Connected'] == True]
+
+    if filter_broadway and 'Has Broadway' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['Has Broadway'] == True]
+
+    # Sorting
+    st.sidebar.markdown('---')
+    st.sidebar.header('📊 Sorting')
+
+    sort_options = ['Flop'] + action_cols + equity_cols
+    sort_by = st.sidebar.selectbox('Sort by:', sort_options)
+    sort_order = st.sidebar.radio('Order:', ['Descending', 'Ascending'])
+
+    ascending = sort_order == 'Ascending'
+    filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending)
+
+    # --- VISUALIZATIONS ---
+    st.markdown('---')
+    st.header('📈 Strategy Visualization')
+
+    # Action highlight selection
+    if action_cols:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            highlight_action = st.selectbox(
+                'Highlight Action:',
+                action_cols,
+                index=0
+            )
+        with col2:
+            group_by_category = st.checkbox('Group by Category', value=True)
+
+    # Strategy chart
+    if action_cols and not filtered_df.empty:
+        chart = create_strategy_chart(
+            filtered_df,
+            action_cols,
+            highlight_action=highlight_action,
+            group_by='Board Category' if group_by_category else None,
+            title=f'Strategy Frequency ({len(filtered_df)} flops)'
+        )
+        st.plotly_chart(chart, use_container_width=True)
+
+        # Category comparison bars
+        if group_by_category:
+            st.subheader(f'{highlight_action} by Category')
+            bar_chart = create_category_comparison_bars(
+                filtered_df, highlight_action
+            )
+            st.plotly_chart(bar_chart, use_container_width=True)
+    else:
+        st.warning('No data matches the current filters.')
+
+    # --- DATA TABLE ---
+    st.markdown('---')
+    st.header('📋 Data Table')
+
+    # Column selection
+    with st.expander('Select columns to display'):
+        default_cols = ['Flop', 'Board Category'] + action_cols[:4] + equity_cols[:2]
+        available_cols = filtered_df.columns.tolist()
+        selected_cols = st.multiselect(
+            'Columns:',
+            available_cols,
+            default=[c for c in default_cols if c in available_cols]
+        )
+
+    if selected_cols:
+        display_df = filtered_df[selected_cols]
+    else:
+        display_df = filtered_df
+
+    # Display with styling
+    st.dataframe(
+        display_df.style.format(
+            {col: '{:.1f}' for col in display_df.columns
+             if display_df[col].dtype in ['float64', 'float32']}
+        ),
+        use_container_width=True,
+        height=500
+    )
+
+    # Pagination info
+    st.caption(f'Showing {len(filtered_df)} of {len(df)} flops')
+
+    # --- CATEGORY SUMMARY ---
+    st.markdown('---')
+    st.header('📊 Detailed Statistics')
+
+    summary = get_board_summary(filtered_df)
+    if not summary.empty:
+        # Calculate dynamic height based on number of categories
+        num_categories = len(summary)
+        table_height = min(800, max(400, num_categories * 35 + 50))
+
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.dataframe(
+                summary.style.format('{:.1f}').background_gradient(
+                    cmap='Blues',
+                    subset=[c for c in summary.columns if c != 'Count']
+                ),
+                use_container_width=True,
+                height=table_height
+            )
+
+        with col2:
+            dist_chart = create_distribution_chart(filtered_df)
+            st.plotly_chart(dist_chart, use_container_width=True)
+
+    # --- EXPORT ---
+    st.markdown('---')
+    st.header('💾 Export')
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        csv = filtered_df.to_csv(index=False)
+        st.download_button(
+            '📥 Download Filtered Data (CSV)',
+            csv,
+            file_name=f'{selected_report}_filtered.csv',
+            mime='text/csv'
+        )
+
+    with col2:
+        summary_csv = summary.to_csv()
+        st.download_button(
+            '📥 Download Summary (CSV)',
+            summary_csv,
+            file_name=f'{selected_report}_summary.csv',
+            mime='text/csv'
+        )

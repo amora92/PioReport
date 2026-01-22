@@ -1,3 +1,9 @@
 streamlit~=1.34.0
 pandas~=2.2.2
 matplotlib~=3.8.4
+plotly~=5.22.0
+numpy~=1.26.4
+
+# Run with:
+# source venv/Scripts/activate
+# streamlit run main.py
