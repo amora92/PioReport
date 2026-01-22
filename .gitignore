@@ -5,3 +5,36 @@
 /venv
 /extracted
 *.csv
+extracted/500NL_LJ_vs_BB_3bet/report.csv
+extracted/500NL_LJ_vs_BB_3bet/report_IP_Full.csv
+extracted/500NL_LJ_vs_BB_3bet/report_OOP_Full.csv
+extracted/500NL_LJ_vs_BB_SRP/handsEV.csv
+extracted/500NL_LJ_vs_BB_SRP/info.txt
+extracted/500NL_LJ_vs_BB_SRP/ipPreflopOrder.txt
+extracted/500NL_LJ_vs_BB_SRP/oopPreflopOrder.txt
+extracted/500NL_LJ_vs_BB_SRP/report.csv
+extracted/500NL_LJ_vs_BB_SRP/report_IP_Full.csv
+extracted/500NL_LJ_vs_BB_SRP/report_OOP_Full.csv
+Fresh extracts/3B BB vs BTN , BB action/info.txt
+Fresh extracts/3B BB vs BTN , BB action/ipPreflopOrder.txt
+Fresh extracts/3B BB vs BTN , BB action/oopPreflopOrder.txt
+Fresh extracts/3B BB VS SB SB X/info.txt
+Fresh extracts/3B BB VS SB SB X/ipPreflopOrder.txt
+Fresh extracts/3B BB VS SB SB X/oopPreflopOrder.txt
+Fresh extracts/SRP COVBB BB X/info.txt
+Fresh extracts/SRP COVBB BB X/ipPreflopOrder.txt
+Fresh extracts/SRP COVBB BB X/oopPreflopOrder.txt
+pages/__pycache__/3_Board_Explorer.cpython-312.pyc
+pages/__pycache__/4_Range_Builder.cpython-312.pyc
+SB VS BB_ SB ACTION SRP/info.txt
+SB VS BB_ SB ACTION SRP/ipPreflopOrder.txt
+extracted/500NL_LJ_vs_BB_3bet/report.csv
+extracted/500NL_LJ_vs_BB_3bet/report_IP_Full.csv
+extracted/500NL_LJ_vs_BB_3bet/report_OOP_Full.csv
+extracted/500NL_LJ_vs_BB_SRP/handsEV.csv
+extracted/500NL_LJ_vs_BB_SRP/info.txt
+extracted/500NL_LJ_vs_BB_SRP/ipPreflopOrder.txt
+extracted/500NL_LJ_vs_BB_SRP/oopPreflopOrder.txt
+extracted/500NL_LJ_vs_BB_SRP/report.csv
+extracted/500NL_LJ_vs_BB_SRP/report_IP_Full.csv
+extracted/500NL_LJ_vs_BB_SRP/report_OOP_Full.csv
