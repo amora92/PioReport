@@ -4,3 +4,4 @@
 /modules
 /venv
 /extracted
+*.csv
